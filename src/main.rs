@@ -19,6 +19,7 @@ use std::time::Duration;
 mod state;
 mod animations;
 mod render;
+mod grabs;
 use state::{NanaimoState, ClientState};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -136,6 +137,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     InputEvent::Keyboard { event } => {
                         state.on_keyboard_key(event.key_code(), event.state(), event.time_msec());
+                    }
+                    InputEvent::PointerAxis { event } => {
+                        state.on_pointer_axis(event);
                     }
                     _ => (),
                 }

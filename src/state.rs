@@ -5,7 +5,7 @@ use smithay::{
     desktop::{Space, Window, WindowSurfaceType},
     input::{
         Seat, SeatState, SeatHandler, 
-        pointer::{CursorImageStatus, PointerHandle, MotionEvent, ButtonEvent}, 
+        pointer::{CursorImageStatus, PointerHandle, MotionEvent, ButtonEvent, Focus, AxisFrame}, 
         keyboard::{FilterResult, Keycode},
     },
     reexports::{
@@ -159,6 +159,23 @@ impl NanaimoState {
         );
         pointer.frame(self);
     }
+
+    pub fn on_pointer_axis(&mut self, event: smithay::backend::input::PointerAxisEvent) {
+        let mut frame = AxisFrame::new(event.time_msec());
+        if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Vertical) {
+            frame = frame.v120(smithay::backend::input::Axis::Vertical, v);
+        } else if let Some(v) = event.amount(smithay::backend::input::Axis::Vertical) {
+            frame = frame.value(smithay::backend::input::Axis::Vertical, v);
+        }
+        if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Horizontal) {
+            frame = frame.v120(smithay::backend::input::Axis::Horizontal, v);
+        } else if let Some(v) = event.amount(smithay::backend::input::Axis::Horizontal) {
+            frame = frame.value(smithay::backend::input::Axis::Horizontal, v);
+        }
+        
+        self.pointer.axis(self, frame);
+        self.pointer.frame(self);
+    }
     
     pub fn on_keyboard_key(&mut self, keycode: Keycode, state: KeyState, time: u32) {
         let serial = self.serial_counter.next_serial();
@@ -307,6 +324,44 @@ impl XdgShellHandler for NanaimoState {
 
     fn reposition_request(&mut self, _surface: PopupSurface, _positioner: PositionerState, _token: u32) {
         // TODO: Handle reposition request
+    }
+
+    fn move_request(&mut self, surface: ToplevelSurface, seat: Seat<Self>, serial: Serial) {
+        let window = self.space.elements().find(|w| w.toplevel().map(|tl| tl == &surface).unwrap_or(false)).cloned();
+        if let Some(window) = window {
+            let pointer = seat.get_pointer().unwrap();
+            let start_data = pointer.grab_start_data().unwrap();
+            let initial_window_location = self.space.element_location(&window).unwrap();
+
+            let grab = crate::grabs::PointerMoveSurfaceGrab {
+                start_data,
+                window,
+                initial_window_location,
+            };
+
+            pointer.set_grab(self, grab, serial, Focus::Clear);
+        }
+    }
+
+    fn resize_request(&mut self, surface: ToplevelSurface, seat: Seat<Self>, serial: Serial, edges: smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge) {
+        let window = self.space.elements().find(|w| w.toplevel().map(|tl| tl == &surface).unwrap_or(false)).cloned();
+        if let Some(window) = window {
+            let pointer = seat.get_pointer().unwrap();
+            let start_data = pointer.grab_start_data().unwrap();
+            let initial_window_location = self.space.element_location(&window).unwrap();
+            let initial_window_size = window.geometry().size;
+
+            let grab = crate::grabs::PointerResizeSurfaceGrab {
+                start_data,
+                window,
+                edges: edges.into(),
+                initial_window_location,
+                initial_window_size,
+                last_window_size: initial_window_size,
+            };
+
+            pointer.set_grab(self, grab, serial, Focus::Clear);
+        }
     }
 }
 
