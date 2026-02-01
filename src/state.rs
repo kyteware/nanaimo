@@ -62,7 +62,6 @@ pub struct NanaimoState {
     pub xdg_decoration_state: XdgDecorationState,
     pub layer_shell_state: WlrLayerShellState,
     pub shm_state: ShmState,
-    pub output_manager_state: OutputManagerState,
     pub seat_state: SeatState<NanaimoState>,
     pub data_device_state: DataDeviceState,
     pub seat: Seat<NanaimoState>,
@@ -70,7 +69,6 @@ pub struct NanaimoState {
     pub animation_manager: AnimationManager,
     
     pub display_handle: DisplayHandle,
-    pub loop_handle: LoopHandle<'static, NanaimoState>,
     pub serial_counter: smithay::utils::SerialCounter,
 }
 
@@ -110,14 +108,12 @@ impl NanaimoState {
             xdg_decoration_state,
             layer_shell_state,
             shm_state,
-            output_manager_state,
             seat_state,
             data_device_state,
             seat,
             pointer,
             animation_manager: AnimationManager::new(),
             display_handle: dh,
-            loop_handle,
             serial_counter: smithay::utils::SerialCounter::default(),
         }
     }

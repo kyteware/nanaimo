@@ -3,7 +3,7 @@ use smithay::{
         damage::{Error as OutputDamageTrackerError, OutputDamageTracker, RenderOutputResult},
         element::{
             surface::WaylandSurfaceRenderElement,
-            AsRenderElements, Wrap,
+            Wrap,
         },
         Color32F, ImportAll, ImportMem, Renderer,
     },

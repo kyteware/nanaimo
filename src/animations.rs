@@ -36,7 +36,6 @@ impl Animation {
 
 pub struct WindowAnimationState {
     pub alpha: f64,
-    pub scale: f64,
     pub animations: HashMap<String, Animation>, // e.g. "fade", "scale"
 }
 
@@ -44,7 +43,6 @@ impl Default for WindowAnimationState {
     fn default() -> Self {
         Self {
             alpha: 1.0,
-            scale: 1.0,
             animations: HashMap::new(),
         }
     }
