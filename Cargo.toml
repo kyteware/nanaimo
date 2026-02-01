@@ -1,0 +1,18 @@
+[package]
+name = "nanaimo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitflags = "2.10.0"
+calloop = "0.14.3"
+slog = "2.8.2"
+slog-stdlog = "4.1.1"
+smithay = { git = "https://github.com/Smithay/smithay.git", features = ["backend_winit", "backend_udev", "backend_drm", "renderer_gl", "xwayland", "desktop", "wayland_frontend", "use_system_lib"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+wayland-protocols = { version = "0.32.10", features = ["server"] }
+wayland-server = "0.31.11"
+
+[build-dependencies]
+wayland-scanner = "0.31.8"
