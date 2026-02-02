@@ -139,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         state.on_keyboard_key(event.key_code(), event.state(), event.time_msec());
                     }
                     InputEvent::PointerAxis { event } => {
-                        state.on_pointer_axis(event);
+                        state.on_pointer_axis::<winit::WinitInput>(event);
                     }
                     _ => (),
                 }

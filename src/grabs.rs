@@ -1,13 +1,22 @@
+use bitflags::bitflags;
 use smithay::{
     desktop::Window,
-    input::pointer::{GrabStartData, MotionEvent, PointerGrab, PointerInnerHandle, ButtonEvent, RelativeMotionEvent, AxisFrame},
+    input::pointer::{
+        GrabStartData, MotionEvent, PointerGrab, PointerInnerHandle, ButtonEvent, RelativeMotionEvent, AxisFrame,
+        GestureSwipeBeginEvent, GestureSwipeUpdateEvent, GestureSwipeEndEvent,
+        GesturePinchBeginEvent, GesturePinchUpdateEvent, GesturePinchEndEvent,
+        GestureHoldBeginEvent, GestureHoldEndEvent,
+    },
     utils::{Logical, Point, Size},
-    reexports::wayland_protocols::xdg::shell::server::xdg_toplevel,
+    reexports::{
+        wayland_protocols::xdg::shell::server::xdg_toplevel,
+        wayland_server::protocol::wl_surface::WlSurface,
+    },
 };
 
 use crate::state::NanaimoState;
 
-bitflags::bitflags! {
+bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct ResizeEdge: u32 {
         const NONE = 0;
@@ -40,7 +49,7 @@ impl PointerGrab<NanaimoState> for PointerMoveSurfaceGrab {
         &mut self,
         data: &mut NanaimoState,
         handle: &mut PointerInnerHandle<'_, NanaimoState>,
-        _focus: Option<(Window, Point<f64, Logical>)>,
+        _focus: Option<(WlSurface, Point<f64, Logical>)>,
         event: &MotionEvent,
     ) {
         // While the grab is active, no client has pointer focus
@@ -57,7 +66,7 @@ impl PointerGrab<NanaimoState> for PointerMoveSurfaceGrab {
         &mut self,
         data: &mut NanaimoState,
         handle: &mut PointerInnerHandle<'_, NanaimoState>,
-        focus: Option<(Window, Point<f64, Logical>)>,
+        focus: Option<(WlSurface, Point<f64, Logical>)>,
         event: &RelativeMotionEvent,
     ) {
         handle.relative_motion(data, focus, event);
@@ -93,9 +102,43 @@ impl PointerGrab<NanaimoState> for PointerMoveSurfaceGrab {
         handle.frame(data);
     }
 
+    fn gesture_swipe_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeBeginEvent) {
+        handle.gesture_swipe_begin(data, event);
+    }
+
+    fn gesture_swipe_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeUpdateEvent) {
+        handle.gesture_swipe_update(data, event);
+    }
+
+    fn gesture_swipe_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeEndEvent) {
+        handle.gesture_swipe_end(data, event);
+    }
+
+    fn gesture_pinch_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchBeginEvent) {
+        handle.gesture_pinch_begin(data, event);
+    }
+
+    fn gesture_pinch_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchUpdateEvent) {
+        handle.gesture_pinch_update(data, event);
+    }
+
+    fn gesture_pinch_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchEndEvent) {
+        handle.gesture_pinch_end(data, event);
+    }
+
+    fn gesture_hold_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldBeginEvent) {
+        handle.gesture_hold_begin(data, event);
+    }
+
+    fn gesture_hold_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldEndEvent) {
+        handle.gesture_hold_end(data, event);
+    }
+
     fn start_data(&self) -> &GrabStartData<NanaimoState> {
         &self.start_data
     }
+
+    fn unset(&mut self, _data: &mut NanaimoState) {}
 }
 
 pub struct PointerResizeSurfaceGrab {
@@ -112,7 +155,7 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
         &mut self,
         data: &mut NanaimoState,
         handle: &mut PointerInnerHandle<'_, NanaimoState>,
-        _focus: Option<(Window, Point<f64, Logical>)>,
+        _focus: Option<(WlSurface, Point<f64, Logical>)>,
         event: &MotionEvent,
     ) {
         handle.motion(data, None, event);
@@ -157,7 +200,7 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
         &mut self,
         data: &mut NanaimoState,
         handle: &mut PointerInnerHandle<'_, NanaimoState>,
-        focus: Option<(Window, Point<f64, Logical>)>,
+        focus: Option<(WlSurface, Point<f64, Logical>)>,
         event: &RelativeMotionEvent,
     ) {
         handle.relative_motion(data, focus, event);
@@ -215,7 +258,41 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
         handle.frame(data);
     }
 
+    fn gesture_swipe_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeBeginEvent) {
+        handle.gesture_swipe_begin(data, event);
+    }
+
+    fn gesture_swipe_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeUpdateEvent) {
+        handle.gesture_swipe_update(data, event);
+    }
+
+    fn gesture_swipe_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeEndEvent) {
+        handle.gesture_swipe_end(data, event);
+    }
+
+    fn gesture_pinch_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchBeginEvent) {
+        handle.gesture_pinch_begin(data, event);
+    }
+
+    fn gesture_pinch_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchUpdateEvent) {
+        handle.gesture_pinch_update(data, event);
+    }
+
+    fn gesture_pinch_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchEndEvent) {
+        handle.gesture_pinch_end(data, event);
+    }
+
+    fn gesture_hold_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldBeginEvent) {
+        handle.gesture_hold_begin(data, event);
+    }
+
+    fn gesture_hold_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldEndEvent) {
+        handle.gesture_hold_end(data, event);
+    }
+
     fn start_data(&self) -> &GrabStartData<NanaimoState> {
         &self.start_data
     }
+
+    fn unset(&mut self, _data: &mut NanaimoState) {}
 }

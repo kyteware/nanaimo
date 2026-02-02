@@ -10,7 +10,7 @@ use smithay::{
     },
     reexports::{
         calloop::LoopHandle,
-        wayland_server::{Display, DisplayHandle, backend::{ClientData, ClientId, DisconnectReason}, protocol::wl_buffer::WlBuffer, protocol::wl_output::WlOutput},
+        wayland_server::{Display, DisplayHandle, backend::{ClientData, ClientId, DisconnectReason}, protocol::wl_buffer::WlBuffer, protocol::wl_output::WlOutput, protocol::wl_surface::WlSurface, protocol::wl_seat::WlSeat},
     },
     utils::{Point, Logical, Serial},
     backend::input::KeyState,
@@ -30,7 +30,9 @@ use smithay::{
         buffer::BufferHandler,
     },
 };
-use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
+use smithay::backend::input::Event;
+use smithay::backend::input::PointerAxisEvent;
+
 use smithay::wayland::selection::SelectionHandler;
 use smithay::wayland::fractional_scale::with_fractional_scale;
 use smithay::desktop::utils::surface_primary_scanout_output;
@@ -73,7 +75,7 @@ pub struct NanaimoState {
 }
 
 impl NanaimoState {
-    pub fn new(display: &Display<NanaimoState>, loop_handle: LoopHandle<'static, NanaimoState>) -> Self {
+    pub fn new(display: &Display<NanaimoState>, _loop_handle: LoopHandle<'static, NanaimoState>) -> Self {
         tracing::info!("Initializing NanaimoState...");
         let dh = display.handle();
         
@@ -85,7 +87,7 @@ impl NanaimoState {
         let xdg_decoration_state = XdgDecorationState::new::<Self>(&dh);
         let layer_shell_state = WlrLayerShellState::new::<Self>(&dh);
         let shm_state = ShmState::new::<Self>(&dh, vec![]);
-        let output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
+        let _output_manager_state = OutputManagerState::new_with_xdg_output::<Self>(&dh);
         let mut seat_state = SeatState::new();
         let mut seat = seat_state.new_wl_seat(&dh, "nanaimo");
         
@@ -160,21 +162,22 @@ impl NanaimoState {
         pointer.frame(self);
     }
 
-    pub fn on_pointer_axis(&mut self, event: smithay::backend::input::PointerAxisEvent) {
+    pub fn on_pointer_axis<B: smithay::backend::input::InputBackend>(&mut self, event: B::PointerAxisEvent) {
         let mut frame = AxisFrame::new(event.time_msec());
         if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Vertical) {
-            frame = frame.v120(smithay::backend::input::Axis::Vertical, v);
+            frame = frame.v120(smithay::backend::input::Axis::Vertical, v as i32);
         } else if let Some(v) = event.amount(smithay::backend::input::Axis::Vertical) {
             frame = frame.value(smithay::backend::input::Axis::Vertical, v);
         }
         if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Horizontal) {
-            frame = frame.v120(smithay::backend::input::Axis::Horizontal, v);
+            frame = frame.v120(smithay::backend::input::Axis::Horizontal, v as i32);
         } else if let Some(v) = event.amount(smithay::backend::input::Axis::Horizontal) {
             frame = frame.value(smithay::backend::input::Axis::Horizontal, v);
         }
         
-        self.pointer.axis(self, frame);
-        self.pointer.frame(self);
+        let pointer = self.pointer.clone();
+        pointer.axis(self, frame);
+        pointer.frame(self);
     }
     
     pub fn on_keyboard_key(&mut self, keycode: Keycode, state: KeyState, time: u32) {
@@ -326,9 +329,10 @@ impl XdgShellHandler for NanaimoState {
         // TODO: Handle reposition request
     }
 
-    fn move_request(&mut self, surface: ToplevelSurface, seat: Seat<Self>, serial: Serial) {
+    fn move_request(&mut self, surface: ToplevelSurface, wl_seat: WlSeat, serial: Serial) {
         let window = self.space.elements().find(|w| w.toplevel().map(|tl| tl == &surface).unwrap_or(false)).cloned();
         if let Some(window) = window {
+            let seat = Seat::from_resource(&wl_seat).unwrap();
             let pointer = seat.get_pointer().unwrap();
             let start_data = pointer.grab_start_data().unwrap();
             let initial_window_location = self.space.element_location(&window).unwrap();
@@ -343,9 +347,10 @@ impl XdgShellHandler for NanaimoState {
         }
     }
 
-    fn resize_request(&mut self, surface: ToplevelSurface, seat: Seat<Self>, serial: Serial, edges: smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge) {
+    fn resize_request(&mut self, surface: ToplevelSurface, wl_seat: WlSeat, serial: Serial, edges: smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge) {
         let window = self.space.elements().find(|w| w.toplevel().map(|tl| tl == &surface).unwrap_or(false)).cloned();
         if let Some(window) = window {
+            let seat = Seat::from_resource(&wl_seat).unwrap();
             let pointer = seat.get_pointer().unwrap();
             let start_data = pointer.grab_start_data().unwrap();
             let initial_window_location = self.space.element_location(&window).unwrap();
