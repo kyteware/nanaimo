@@ -1,0 +1,18 @@
+    Checking nanaimo v0.1.0 (/home/dworv/hacking/nanaimo)
+error[E0277]: `<B as InputBackend>::PointerAxisEvent` doesn't implement `std::fmt::Debug`
+   --> src/state.rs:175:53
+    |
+175 |         tracing::trace!("Pointer axis event: {:?}", event);
+    |                                              ----   ^^^^^ `<B as InputBackend>::PointerAxisEvent` cannot be formatted using `{:?}` because it doesn't implement `std::fmt::Debug`
+    |                                              |
+    |                                              required by this formatting parameter
+    |
+    = help: the trait `std::fmt::Debug` is not implemented for `<B as InputBackend>::PointerAxisEvent`
+    = note: this error originates in the macro `$crate::__macro_support::format_args` which comes from the expansion of the macro `tracing::trace` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider further restricting the associated type
+    |
+174 |     pub fn on_pointer_axis<B: smithay::backend::input::InputBackend>(&mut self, event: B::PointerAxisEvent) where <B as InputBackend>::PointerAxisEvent: std::fmt::Debug {
+    |                                                                                                             ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `nanaimo` (bin "nanaimo") due to 2 previous errors

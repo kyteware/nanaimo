@@ -1,0 +1,29 @@
+    Checking nanaimo v0.1.0 (/home/dworv/hacking/nanaimo)
+error[E0599]: no method named `amount_discrete` found for associated type `<B as InputBackend>::PointerAxisEvent` in the current scope
+   --> src/state.rs:184:32
+    |
+184 |         if let Some(v) = event.amount_discrete(smithay::backend::input::Axis::Vertical) {
+    |                                ^^^^^^^^^^^^^^^ method not found in `<B as InputBackend>::PointerAxisEvent`
+
+error[E0599]: no method named `discrete` found for struct `AxisFrame` in the current scope
+   --> src/state.rs:185:27
+    |
+185 |             frame = frame.discrete(smithay::backend::input::Axis::Vertical, v as i32);
+    |                           ^^^^^^^^ method not found in `AxisFrame`
+
+error[E0599]: no method named `amount_discrete` found for associated type `<B as InputBackend>::PointerAxisEvent` in the current scope
+   --> src/state.rs:194:32
+    |
+194 |         if let Some(v) = event.amount_discrete(smithay::backend::input::Axis::Horizontal) {
+    |                                ^^^^^^^^^^^^^^^ method not found in `<B as InputBackend>::PointerAxisEvent`
+
+error[E0599]: no method named `discrete` found for struct `AxisFrame` in the current scope
+   --> src/state.rs:195:27
+    |
+195 |             frame = frame.discrete(smithay::backend::input::Axis::Horizontal, v as i32);
+    |                           ^^^^^^^^ method not found in `AxisFrame`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `nanaimo` (bin "nanaimo") due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `nanaimo` (bin "nanaimo" test) due to 4 previous errors

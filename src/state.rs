@@ -13,7 +13,7 @@ use smithay::{
         wayland_server::{Display, DisplayHandle, backend::{ClientData, ClientId, DisconnectReason}, protocol::wl_surface::WlSurface},
     },
     utils::{Point, Logical, Serial},
-    backend::input::KeyState,
+    backend::input::{KeyState, Axis, AxisSource, AxisRelativeDirection},
     wayland::{
         compositor::{CompositorState, CompositorClientState},
         viewporter::ViewporterState,
@@ -172,17 +172,38 @@ impl NanaimoState {
     }
 
     pub fn on_pointer_axis<B: smithay::backend::input::InputBackend>(&mut self, event: B::PointerAxisEvent) {
-        let mut frame = AxisFrame::new(event.time_msec());
-        if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Vertical) {
-            frame = frame.v120(smithay::backend::input::Axis::Vertical, v as i32);
-        } else if let Some(v) = event.amount(smithay::backend::input::Axis::Vertical) {
-            frame = frame.value(smithay::backend::input::Axis::Vertical, v);
-        }
-        if let Some(v) = event.amount_v120(smithay::backend::input::Axis::Horizontal) {
-            frame = frame.v120(smithay::backend::input::Axis::Horizontal, v as i32);
-        } else if let Some(v) = event.amount(smithay::backend::input::Axis::Horizontal) {
-            frame = frame.value(smithay::backend::input::Axis::Horizontal, v);
-        }
+        let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
+        
+        let mut process_axis = |axis: Axis, frame: &mut AxisFrame| {
+            let mut amount = event.amount(axis);
+            let v120 = event.amount_v120(axis);
+            
+            // Fallback: If we have v120 but no pixel amount, compute a reasonable pixel amount.
+            // Some clients (like weston-terminal) expect a non-zero axis value even if they are v120-aware.
+            // Smithay only sends the mandatory axis event if value is non-zero.
+            if amount.is_none() {
+                if let Some(v) = v120 {
+                    // 15 pixels per 120 units (one tick) is a common default.
+                    amount = Some(v as f64 / 120.0 * 15.0);
+                }
+            }
+            
+            if let Some(v) = amount {
+                if v != 0.0 {
+                    *frame = frame.value(axis, v);
+                    if let Some(v120_val) = v120 {
+                        *frame = frame.v120(axis, v120_val as i32);
+                    }
+                } else if event.source() == AxisSource::Finger {
+                    *frame = frame.stop(axis);
+                }
+            }
+            
+            *frame = frame.relative_direction(axis, event.relative_direction(axis));
+        };
+
+        process_axis(Axis::Vertical, &mut frame);
+        process_axis(Axis::Horizontal, &mut frame);
         
         let pointer = self.pointer.clone();
         pointer.axis(self, frame);

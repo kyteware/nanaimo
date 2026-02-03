@@ -108,8 +108,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
         
-        display.flush_clients().unwrap();
         display.dispatch_clients(&mut state).expect("Failed to dispatch clients");
+        display.flush_clients().unwrap();
         
         // Dispatch winit events using the 'winit' handler, NOT backend
         let _ = winit.dispatch_new_events(|event| match event {
