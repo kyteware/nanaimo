@@ -13,6 +13,7 @@ use smithay::{
         wayland_server::Display,
     },
     backend::input::{AbsolutePositionEvent, Event, PointerButtonEvent, KeyboardKeyEvent},
+    input::pointer::CursorImageStatus,
 };
 use std::time::Duration;
 
@@ -149,6 +150,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             _ => (),
         });
+
+        // Sync cursor status
+        let window = backend.window();
+        match state.cursor_status {
+            CursorImageStatus::Named(icon) => {
+                window.set_cursor(icon);
+                window.set_cursor_visible(true);
+            }
+            CursorImageStatus::Surface(_) => {
+                // For now, keep the default if a surface is requested
+                window.set_cursor(smithay::input::pointer::CursorIcon::Default);
+                window.set_cursor_visible(true);
+            }
+            CursorImageStatus::Hidden => {
+                window.set_cursor_visible(false);
+            }
+        }
         
         // Render
         state.animation_manager.tick();

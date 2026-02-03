@@ -19,8 +19,7 @@ impl SeatHandler for NanaimoState {
     }
     
     fn cursor_image(&mut self, _seat: &Seat<Self>, image: CursorImageStatus) {
-        tracing::trace!("Cursor image changed: {:?}", image);
-        // TODO: Actually render the cursor based on image status (surface or named)
+        self.cursor_status = image;
     }
     
     fn focus_changed(&mut self, seat: &Seat<Self>, focus: Option<&Self::KeyboardFocus>) {
