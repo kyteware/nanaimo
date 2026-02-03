@@ -3,7 +3,7 @@ use smithay::{
         Seat, SeatState, SeatHandler,
         pointer::{CursorImageStatus},
     },
-    reexports::wayland_server::protocol::{wl_surface::WlSurface},
+    reexports::wayland_server::{protocol::wl_surface::WlSurface, Resource},
     wayland::tablet_manager::TabletSeatHandler,
 };
 
@@ -23,8 +23,14 @@ impl SeatHandler for NanaimoState {
         // TODO: Actually render the cursor based on image status (surface or named)
     }
     
-    fn focus_changed(&mut self, _seat: &Seat<Self>, _focus: Option<&Self::KeyboardFocus>) {
-        tracing::trace!("Focus changed: {:?}", _focus);
+    fn focus_changed(&mut self, seat: &Seat<Self>, focus: Option<&Self::KeyboardFocus>) {
+        tracing::debug!("Focus changed: {:?}", focus);
+        
+        let dh = &self.display_handle;
+        let client = focus.and_then(|s| dh.get_client(s.id()).ok());
+        
+        smithay::wayland::selection::data_device::set_data_device_focus(dh, seat, client.clone());
+        smithay::wayland::selection::primary_selection::set_primary_focus(dh, seat, client);
     }
 }
 
