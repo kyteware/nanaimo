@@ -20,6 +20,7 @@ mod state;
 mod animations;
 mod render;
 mod grabs;
+mod handlers;
 use state::{NanaimoState, ClientState};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -125,11 +126,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match event {
                     InputEvent::PointerMotionAbsolute { event } => {
                         let output_geo = state.space.output_geometry(&output).unwrap();
-                        let pos = event.position_transformed(output_geo.size);
-                        // Apply output transform to pointer
-                        let transformed_pos = output.current_transform().transform_point_in(pos.to_i32_round(), &output_geo.size).to_f64();
-                        let final_pos = transformed_pos + output_geo.loc.to_f64();
-                        tracing::debug!("Pointer: visual/physical={:?} transformed/logical={:?}", pos, transformed_pos);
+                        let final_pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
+                        
+                        tracing::debug!("Pointer move: logical={:?}", final_pos);
                         state.on_pointer_move_absolute(final_pos, event.time_msec());
                     }
                     InputEvent::PointerButton { event } => {
