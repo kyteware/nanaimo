@@ -22,10 +22,10 @@ impl CompositorHandler for NanaimoState {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
-        tracing::debug!("Surface commit: {:?}", surface);
+        tracing::trace!("Surface commit: {:?}", surface);
         smithay::backend::renderer::utils::on_commit_buffer_handler::<Self>(surface);
         if let Some(window) = self.space.elements().find(|w| w.toplevel().map(|tl| tl.wl_surface() == surface).unwrap_or(false)) {
-             tracing::debug!("Window commit: {:?}", window);
+             tracing::trace!("Window commit: {:?}", window);
              window.on_commit();
         }
     }

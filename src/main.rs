@@ -26,7 +26,7 @@ use state::{NanaimoState, ClientState};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Logging
     if std::env::var("RUST_LOG").is_err() {
-        unsafe { std::env::set_var("RUST_LOG", "info,nanaimo=debug,smithay=debug"); }
+        unsafe { std::env::set_var("RUST_LOG", "info,nanaimo=info,smithay=warn"); }
     }
     tracing_subscriber::fmt::init();
 
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let output_geo = state.space.output_geometry(&output).unwrap();
                         let final_pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
                         
-                        tracing::debug!("Pointer move: logical={:?}", final_pos);
+                        tracing::trace!("Pointer move: logical={:?}", final_pos);
                         state.on_pointer_move_absolute(final_pos, event.time_msec());
                     }
                     InputEvent::PointerButton { event } => {

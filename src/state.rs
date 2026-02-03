@@ -19,7 +19,11 @@ use smithay::{
         viewporter::ViewporterState,
         xdg_activation::{XdgActivationState},
         fractional_scale::{FractionalScaleManagerState},
-        selection::data_device::{DataDeviceState},
+        cursor_shape::{CursorShapeManagerState},
+        selection::{
+            data_device::{DataDeviceState},
+            primary_selection::{PrimarySelectionState},
+        },
         shell::{
             xdg::{XdgShellState},
             wlr_layer::{WlrLayerShellState},
@@ -52,12 +56,14 @@ pub struct NanaimoState {
     pub viewporter_state: ViewporterState,
     pub xdg_activation_state: XdgActivationState,
     pub fractional_scale_manager_state: FractionalScaleManagerState,
+    pub cursor_shape_manager_state: CursorShapeManagerState,
     pub xdg_shell_state: XdgShellState,
     pub xdg_decoration_state: smithay::wayland::shell::xdg::decoration::XdgDecorationState,
     pub layer_shell_state: WlrLayerShellState,
     pub shm_state: ShmState,
     pub seat_state: SeatState<NanaimoState>,
     pub data_device_state: DataDeviceState,
+    pub primary_selection_state: PrimarySelectionState,
     pub seat: Seat<NanaimoState>,
     pub pointer: PointerHandle<NanaimoState>,
     pub animation_manager: AnimationManager,
@@ -75,6 +81,7 @@ impl NanaimoState {
         let viewporter_state = ViewporterState::new::<Self>(&dh);
         let xdg_activation_state = XdgActivationState::new::<Self>(&dh);
         let fractional_scale_manager_state = FractionalScaleManagerState::new::<Self>(&dh);
+        let cursor_shape_manager_state = CursorShapeManagerState::new::<Self>(&dh);
         let xdg_shell_state = XdgShellState::new::<Self>(&dh);
         let xdg_decoration_state = smithay::wayland::shell::xdg::decoration::XdgDecorationState::new::<Self>(&dh);
         let layer_shell_state = WlrLayerShellState::new::<Self>(&dh);
@@ -91,6 +98,7 @@ impl NanaimoState {
         let pointer = seat.add_pointer();
         
         let data_device_state = DataDeviceState::new::<Self>(&dh);
+        let primary_selection_state = PrimarySelectionState::new::<Self>(&dh);
 
         Self {
             space: Space::default(),
@@ -98,12 +106,14 @@ impl NanaimoState {
             viewporter_state,
             xdg_activation_state,
             fractional_scale_manager_state,
+            cursor_shape_manager_state,
             xdg_shell_state,
             xdg_decoration_state,
             layer_shell_state,
             shm_state,
             seat_state,
             data_device_state,
+            primary_selection_state,
             seat,
             pointer,
             animation_manager: AnimationManager::new(),
@@ -142,7 +152,7 @@ impl NanaimoState {
     
     pub fn on_pointer_button(&mut self, button: u32, state: smithay::backend::input::ButtonState, time: u32) {
         let serial = self.serial_counter.next_serial();
-        tracing::debug!("Pointer button: {:?} state: {:?} at {:?}", button, state, self.pointer.current_location());
+        tracing::trace!("Pointer button: {:?} state: {:?} at {:?}", button, state, self.pointer.current_location());
         
         if state == smithay::backend::input::ButtonState::Pressed {
             self.update_keyboard_focus(serial);
@@ -183,7 +193,7 @@ impl NanaimoState {
         let serial = self.serial_counter.next_serial();
         let keyboard = self.seat.get_keyboard().unwrap();
         let focus = keyboard.current_focus();
-        tracing::debug!("Keyboard key: {:?} state: {:?} current_focus: {:?}", keycode, state, focus.as_ref().map(|f| f.wl_surface()));
+        tracing::trace!("Keyboard key: {:?} state: {:?} current_focus: {:?}", keycode, state, focus.as_ref().map(|f| f.wl_surface()));
         
         keyboard.input::<(), _>(
             self,
@@ -192,7 +202,7 @@ impl NanaimoState {
             serial,
             time,
             |_, _, _| {
-                tracing::debug!("Forwarding key event to client");
+                tracing::trace!("Forwarding key event to client");
                 FilterResult::Forward
             },
         );
@@ -201,14 +211,14 @@ impl NanaimoState {
     fn update_keyboard_focus(&mut self, serial: Serial) {
         let pos = self.pointer.current_location();
         let under = self.space.element_under(pos).map(|(w, p)| (w.clone(), p));
-        tracing::debug!("Updating keyboard focus, pointer at {:?}, found window: {:?}", pos, under.as_ref().map(|(w, _)| w));
+        tracing::trace!("Updating keyboard focus, pointer at {:?}, found window: {:?}", pos, under.as_ref().map(|(w, _)| w));
 
         if let Some((window, _)) = under {
             self.space.raise_element(&window, true);
             let keyboard = self.seat.get_keyboard().unwrap();
             
             if keyboard.current_focus().as_ref().map(|f| f.wl_surface().as_deref() == window.wl_surface().as_deref()).unwrap_or(false) {
-                tracing::debug!("Window already focused");
+                tracing::trace!("Window already focused");
                 return;
             }
 
@@ -251,3 +261,5 @@ smithay::delegate_xdg_activation!(NanaimoState);
 smithay::delegate_fractional_scale!(NanaimoState);
 smithay::delegate_xdg_decoration!(NanaimoState);
 smithay::delegate_data_device!(NanaimoState);
+smithay::delegate_primary_selection!(NanaimoState);
+smithay::delegate_cursor_shape!(NanaimoState);
