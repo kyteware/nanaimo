@@ -1,40 +1,64 @@
-use bitflags::bitflags;
 use smithay::{
     desktop::Window,
     input::pointer::{
-        GrabStartData, MotionEvent, PointerGrab, PointerInnerHandle, ButtonEvent, RelativeMotionEvent, AxisFrame,
-        GestureSwipeBeginEvent, GestureSwipeUpdateEvent, GestureSwipeEndEvent,
-        GesturePinchBeginEvent, GesturePinchUpdateEvent, GesturePinchEndEvent,
-        GestureHoldBeginEvent, GestureHoldEndEvent,
+        AxisFrame, ButtonEvent, CursorIcon, CursorImageStatus, GestureHoldBeginEvent,
+        GestureHoldEndEvent, GesturePinchBeginEvent, GesturePinchEndEvent, GesturePinchUpdateEvent,
+        GestureSwipeBeginEvent, GestureSwipeEndEvent, GestureSwipeUpdateEvent, GrabStartData,
+        MotionEvent, PointerGrab, PointerInnerHandle, RelativeMotionEvent,
     },
-    utils::{Logical, Point, Size},
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
         wayland_server::protocol::wl_surface::WlSurface,
     },
+    utils::{Logical, Point, Serial, Size},
+    wayland::{compositor::with_states, seat::WaylandFocus},
 };
+use std::cell::RefCell;
 
 use crate::state::NanaimoState;
 
-bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    pub struct ResizeEdge: u32 {
-        const NONE = 0;
-        const TOP = 1;
-        const BOTTOM = 2;
-        const LEFT = 4;
-        const TOP_LEFT = 5;
-        const BOTTOM_LEFT = 6;
-        const RIGHT = 8;
-        const TOP_RIGHT = 9;
-        const BOTTOM_RIGHT = 10;
-    }
+pub use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::ResizeEdge;
+
+/// Information about the resize operation.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ResizeData {
+    /// The edges the surface is being resized with.
+    pub edges: ResizeEdge,
+    /// The initial window location.
+    pub initial_window_location: Point<i32, Logical>,
+    /// The initial window size (geometry width and height).
+    pub initial_window_size: Size<i32, Logical>,
 }
 
-impl From<xdg_toplevel::ResizeEdge> for ResizeEdge {
-    #[inline]
-    fn from(x: xdg_toplevel::ResizeEdge) -> Self {
-        Self::from_bits(x as u32).unwrap()
+/// State of the resize operation.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+pub enum ResizeState {
+    /// The surface is not being resized.
+    #[default]
+    NotResizing,
+    /// The surface is currently being resized.
+    Resizing(ResizeData),
+    /// The resize has finished, and the surface needs to ack the final configure.
+    WaitingForFinalAck(ResizeData, Serial),
+    /// The resize has finished, and the surface needs to commit its final state.
+    WaitingForCommit(ResizeData),
+}
+
+pub struct SurfaceData {
+    pub resize_state: ResizeState,
+}
+
+pub fn cursor_icon_for_edge(edge: ResizeEdge) -> CursorIcon {
+    match edge {
+        ResizeEdge::Top => CursorIcon::NResize,
+        ResizeEdge::Bottom => CursorIcon::SResize,
+        ResizeEdge::Left => CursorIcon::WResize,
+        ResizeEdge::Right => CursorIcon::EResize,
+        ResizeEdge::TopLeft => CursorIcon::NwResize,
+        ResizeEdge::TopRight => CursorIcon::NeResize,
+        ResizeEdge::BottomLeft => CursorIcon::SwResize,
+        ResizeEdge::BottomRight => CursorIcon::SeResize,
+        _ => CursorIcon::Default,
     }
 }
 
@@ -54,6 +78,9 @@ impl PointerGrab<NanaimoState> for PointerMoveSurfaceGrab {
     ) {
         // While the grab is active, no client has pointer focus
         handle.motion(data, None, event);
+
+        // wish we could do this, but some clients don't send a grab for a few pixels, so it feels off
+        // data.cursor_status = CursorImageStatus::Named(CursorIcon::Grabbing);
 
         let delta = event.location - self.start_data.location;
         let new_location = self.initial_window_location.to_f64() + delta;
@@ -102,35 +129,75 @@ impl PointerGrab<NanaimoState> for PointerMoveSurfaceGrab {
         handle.frame(data);
     }
 
-    fn gesture_swipe_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeBeginEvent) {
+    fn gesture_swipe_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeBeginEvent,
+    ) {
         handle.gesture_swipe_begin(data, event);
     }
 
-    fn gesture_swipe_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeUpdateEvent) {
+    fn gesture_swipe_update(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeUpdateEvent,
+    ) {
         handle.gesture_swipe_update(data, event);
     }
 
-    fn gesture_swipe_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeEndEvent) {
+    fn gesture_swipe_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeEndEvent,
+    ) {
         handle.gesture_swipe_end(data, event);
     }
 
-    fn gesture_pinch_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchBeginEvent) {
+    fn gesture_pinch_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchBeginEvent,
+    ) {
         handle.gesture_pinch_begin(data, event);
     }
 
-    fn gesture_pinch_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchUpdateEvent) {
+    fn gesture_pinch_update(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchUpdateEvent,
+    ) {
         handle.gesture_pinch_update(data, event);
     }
 
-    fn gesture_pinch_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchEndEvent) {
+    fn gesture_pinch_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchEndEvent,
+    ) {
         handle.gesture_pinch_end(data, event);
     }
 
-    fn gesture_hold_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldBeginEvent) {
+    fn gesture_hold_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureHoldBeginEvent,
+    ) {
         handle.gesture_hold_begin(data, event);
     }
 
-    fn gesture_hold_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldEndEvent) {
+    fn gesture_hold_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureHoldEndEvent,
+    ) {
         handle.gesture_hold_end(data, event);
     }
 
@@ -159,33 +226,54 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
         event: &MotionEvent,
     ) {
         handle.motion(data, None, event);
+        data.cursor_status = CursorImageStatus::Named(cursor_icon_for_edge(self.edges));
 
         let (mut dx, mut dy) = (event.location - self.start_data.location).into();
 
         let mut new_window_width = self.initial_window_size.w;
         let mut new_window_height = self.initial_window_size.h;
 
-        let left_right = ResizeEdge::LEFT | ResizeEdge::RIGHT;
-        let top_bottom = ResizeEdge::TOP | ResizeEdge::BOTTOM;
-
-        if self.edges.intersects(left_right) {
-            if self.edges.intersects(ResizeEdge::LEFT) {
+        match self.edges {
+            ResizeEdge::Left | ResizeEdge::TopLeft | ResizeEdge::BottomLeft => {
                 dx = -dx;
+                new_window_width = (self.initial_window_size.w as f64 + dx) as i32;
             }
-            new_window_width = (self.initial_window_size.w as f64 + dx) as i32;
+            ResizeEdge::Right | ResizeEdge::TopRight | ResizeEdge::BottomRight => {
+                new_window_width = (self.initial_window_size.w as f64 + dx) as i32;
+            }
+            _ => {}
         }
 
-        if self.edges.intersects(top_bottom) {
-            if self.edges.intersects(ResizeEdge::TOP) {
+        match self.edges {
+            ResizeEdge::Top | ResizeEdge::TopLeft | ResizeEdge::TopRight => {
                 dy = -dy;
+                new_window_height = (self.initial_window_size.h as f64 + dy) as i32;
             }
-            new_window_height = (self.initial_window_size.h as f64 + dy) as i32;
+            ResizeEdge::Bottom | ResizeEdge::BottomLeft | ResizeEdge::BottomRight => {
+                new_window_height = (self.initial_window_size.h as f64 + dy) as i32;
+            }
+            _ => {}
         }
 
         new_window_width = new_window_width.max(1);
         new_window_height = new_window_height.max(1);
 
         self.last_window_size = (new_window_width, new_window_height).into();
+
+        if let Some(surface) = self.window.wl_surface() {
+            with_states(&surface, |states| {
+                let mut data = states
+                    .data_map
+                    .get::<RefCell<SurfaceData>>()
+                    .unwrap()
+                    .borrow_mut();
+                data.resize_state = ResizeState::Resizing(ResizeData {
+                    edges: self.edges,
+                    initial_window_location: self.initial_window_location,
+                    initial_window_size: self.initial_window_size,
+                });
+            });
+        }
 
         if let Some(toplevel) = self.window.toplevel() {
             toplevel.with_pending_state(|state| {
@@ -223,19 +311,18 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
                 });
                 toplevel.send_configure();
 
-                // If we resized from top or left, we need to update the window location
-                if self.edges.intersects(ResizeEdge::TOP_LEFT) {
-                    let geometry = self.window.geometry();
-                    let mut location = data.space.element_location(&self.window).unwrap();
-
-                    if self.edges.intersects(ResizeEdge::LEFT) {
-                        location.x = self.initial_window_location.x + (self.initial_window_size.w - geometry.size.w);
-                    }
-                    if self.edges.intersects(ResizeEdge::TOP) {
-                        location.y = self.initial_window_location.y + (self.initial_window_size.h - geometry.size.h);
-                    }
-
-                    data.space.map_element(self.window.clone(), location, true);
+                if let Some(surface) = self.window.wl_surface() {
+                    with_states(&surface, |states| {
+                        let mut data = states
+                            .data_map
+                            .get::<RefCell<SurfaceData>>()
+                            .unwrap()
+                            .borrow_mut();
+                        if let ResizeState::Resizing(resize_data) = data.resize_state {
+                            data.resize_state =
+                                ResizeState::WaitingForFinalAck(resize_data, event.serial);
+                        }
+                    });
                 }
             }
         }
@@ -258,35 +345,75 @@ impl PointerGrab<NanaimoState> for PointerResizeSurfaceGrab {
         handle.frame(data);
     }
 
-    fn gesture_swipe_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeBeginEvent) {
+    fn gesture_swipe_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeBeginEvent,
+    ) {
         handle.gesture_swipe_begin(data, event);
     }
 
-    fn gesture_swipe_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeUpdateEvent) {
+    fn gesture_swipe_update(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeUpdateEvent,
+    ) {
         handle.gesture_swipe_update(data, event);
     }
 
-    fn gesture_swipe_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureSwipeEndEvent) {
+    fn gesture_swipe_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureSwipeEndEvent,
+    ) {
         handle.gesture_swipe_end(data, event);
     }
 
-    fn gesture_pinch_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchBeginEvent) {
+    fn gesture_pinch_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchBeginEvent,
+    ) {
         handle.gesture_pinch_begin(data, event);
     }
 
-    fn gesture_pinch_update(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchUpdateEvent) {
+    fn gesture_pinch_update(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchUpdateEvent,
+    ) {
         handle.gesture_pinch_update(data, event);
     }
 
-    fn gesture_pinch_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GesturePinchEndEvent) {
+    fn gesture_pinch_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GesturePinchEndEvent,
+    ) {
         handle.gesture_pinch_end(data, event);
     }
 
-    fn gesture_hold_begin(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldBeginEvent) {
+    fn gesture_hold_begin(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureHoldBeginEvent,
+    ) {
         handle.gesture_hold_begin(data, event);
     }
 
-    fn gesture_hold_end(&mut self, data: &mut NanaimoState, handle: &mut PointerInnerHandle<'_, NanaimoState>, event: &GestureHoldEndEvent) {
+    fn gesture_hold_end(
+        &mut self,
+        data: &mut NanaimoState,
+        handle: &mut PointerInnerHandle<'_, NanaimoState>,
+        event: &GestureHoldEndEvent,
+    ) {
         handle.gesture_hold_end(data, event);
     }
 

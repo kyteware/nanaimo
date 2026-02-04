@@ -13,7 +13,7 @@ use smithay::{
         wayland_server::{Display, DisplayHandle, backend::{ClientData, ClientId, DisconnectReason}, protocol::wl_surface::WlSurface},
     },
     utils::{Point, Logical, Serial},
-    backend::input::{KeyState, Axis, AxisSource, AxisRelativeDirection},
+    backend::input::{KeyState, Axis, AxisSource},
     wayland::{
         compositor::{CompositorState, CompositorClientState},
         viewporter::ViewporterState,
@@ -176,7 +176,7 @@ impl NanaimoState {
     pub fn on_pointer_axis<B: smithay::backend::input::InputBackend>(&mut self, event: B::PointerAxisEvent) {
         let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
         
-        let mut process_axis = |axis: Axis, frame: &mut AxisFrame| {
+        let process_axis = |axis: Axis, frame: &mut AxisFrame| {
             let mut amount = event.amount(axis);
             let v120 = event.amount_v120(axis);
             
